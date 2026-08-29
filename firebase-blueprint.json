@@ -1,0 +1,112 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Root user account profile and metadata",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "Owner authentication UID", "maxLength": 128 },
+        "displayName": { "type": "string", "description": "Display name of family founder", "maxLength": 100 },
+        "createdAt": { "type": "string", "format": "date-time", "description": "ISO timestamp of creation" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "ISO timestamp of last update" },
+        "databaseVersion": { "type": "number", "description": "Database schema version" }
+      },
+      "required": ["userId", "displayName"]
+    },
+    "UserSettings": {
+      "title": "UserSettings",
+      "description": "General settings including active currency and founder master PIN",
+      "type": "object",
+      "properties": {
+        "currency": { "type": "object", "description": "Selected currency configuration object" },
+        "founderPin": { "type": "string", "description": "4-digit founder master security PIN", "pattern": "^[0-9]{4}$" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "ISO timestamp of last update" }
+      }
+    },
+    "FamilyMember": {
+      "title": "FamilyMember",
+      "description": "Individual member record in the family",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique member identifier", "maxLength": 64 },
+        "name": { "type": "string", "description": "Full name or nickname of member", "maxLength": 80 },
+        "role": { "type": "string", "description": "Family role (e.g. father, mother, son, daughter)", "maxLength": 50 },
+        "avatarColor": { "type": "string", "description": "Tailwind color class for avatar", "maxLength": 50 },
+        "avatarIcon": { "type": "string", "description": "Emoji or icon representing member", "maxLength": 10 },
+        "monthlyBudget": { "type": "number", "description": "Monthly allocated budget amount" },
+        "pin": { "type": "string", "description": "Optional 4-digit personal protection PIN", "pattern": "^[0-9]{4}$" },
+        "notes": { "type": "string", "description": "Optional notes on member responsibilities", "maxLength": 500 },
+        "createdAt": { "type": "string", "format": "date-time", "description": "ISO timestamp" }
+      },
+      "required": ["id", "name", "role", "monthlyBudget"]
+    },
+    "Transaction": {
+      "title": "Transaction",
+      "description": "Financial transaction record (Expense, Income, Savings)",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique transaction UUID", "maxLength": 64 },
+        "description": { "type": "string", "description": "Description or title of transaction", "maxLength": 500 },
+        "title": { "type": "string", "description": "Optional title of transaction", "maxLength": 500 },
+        "amount": { "type": "number", "description": "Monetary value (>= 0)" },
+        "type": { "type": "string", "enum": ["expense", "income"], "description": "Type of transaction" },
+        "categoryId": { "type": "string", "description": "Identifier of the associated category", "maxLength": 64 },
+        "memberId": { "type": "string", "description": "Identifier of the associated family member", "maxLength": 64 },
+        "beneficiaryMemberId": { "type": "string", "description": "Identifier of the beneficiary member", "maxLength": 64 },
+        "date": { "type": "string", "description": "ISO date YYYY-MM-DD" },
+        "paymentMethod": { "type": "string", "description": "Payment method", "maxLength": 50 },
+        "notes": { "type": "string", "description": "Optional details or notes", "maxLength": 500 },
+        "receiptUrl": { "type": "string", "description": "Optional receipt image URL or base64", "maxLength": 500000 },
+        "isRecurring": { "type": "boolean", "description": "Whether transaction was generated from a recurring commitment" },
+        "recurringId": { "type": "string", "description": "Linked recurring item ID", "maxLength": 64 },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Creation timestamp" }
+      },
+      "required": ["id", "amount", "type", "categoryId", "memberId", "date", "paymentMethod"]
+    },
+    "RecurringExpense": {
+      "title": "RecurringExpense",
+      "description": "Scheduled or repeating financial commitment/bill",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique recurring item UUID", "maxLength": 64 },
+        "title": { "type": "string", "description": "Title of recurring bill or commitment", "maxLength": 200 },
+        "amount": { "type": "number", "description": "Recurring amount (>= 0)" },
+        "categoryId": { "type": "string", "description": "Category identifier", "maxLength": 64 },
+        "memberId": { "type": "string", "description": "Responsible member identifier", "maxLength": 64 },
+        "beneficiaryMemberId": { "type": "string", "description": "Beneficiary member identifier", "maxLength": 64 },
+        "frequency": { "type": "string", "enum": ["monthly", "weekly", "yearly", "daily"], "description": "Repetition frequency" },
+        "dueDay": { "type": "number", "description": "Day of the month due (1-31)" },
+        "isActive": { "type": "boolean", "description": "Whether commitment is active" },
+        "paymentMethod": { "type": "string", "description": "Payment method", "maxLength": 50 },
+        "autoDeduct": { "type": "boolean", "description": "Whether auto deduction reminder is active" },
+        "notes": { "type": "string", "description": "Optional notes", "maxLength": 500 },
+        "lastGeneratedMonth": { "type": "string", "description": "Year-month string e.g. 2026-08 when last generated", "maxLength": 30 },
+        "lastLoggedMonth": { "type": "string", "description": "Year-month string e.g. 2026-08 when last logged", "maxLength": 30 },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Creation timestamp" }
+      },
+      "required": ["id", "title", "amount", "categoryId", "memberId", "frequency", "dueDay"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "User profile root document"
+    },
+    "/users/{userId}/settings/{settingId}": {
+      "schema": { "$ref": "#/entities/UserSettings" },
+      "description": "User general settings and security configuration"
+    },
+    "/users/{userId}/members/{memberId}": {
+      "schema": { "$ref": "#/entities/FamilyMember" },
+      "description": "Family members managed under this user account"
+    },
+    "/users/{userId}/transactions/{txId}": {
+      "schema": { "$ref": "#/entities/Transaction" },
+      "description": "Financial records and transactions"
+    },
+    "/users/{userId}/recurringExpenses/{recId}": {
+      "schema": { "$ref": "#/entities/RecurringExpense" },
+      "description": "Recurring commitments and regular bills"
+    }
+  }
+}

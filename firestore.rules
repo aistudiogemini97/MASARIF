@@ -1,0 +1,132 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global Safety Net: Default-deny all unmatched paths
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Security Helper Functions ---
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isValidString(val, minLen, maxLen) {
+      return val is string && val.size() >= minLen && val.size() <= maxLen;
+    }
+
+    function isValidNumber(val, minVal, maxVal) {
+      return val is number && val >= minVal && val <= maxVal;
+    }
+
+    // Root User Document Schema Validation
+    function isValidUserDoc(data, userId) {
+      return data.userId == userId &&
+             isValidString(data.displayName, 1, 100);
+    }
+
+    // User Settings Document Validation
+    function isValidSettings(data) {
+      return (!('founderPin' in data) || (data.founderPin is string && data.founderPin.size() == 4 && data.founderPin.matches('^[0-9]{4}$'))) &&
+             (!('currency' in data) || data.currency is map);
+    }
+
+    // Family Member Document Validation
+    function isValidMember(data, memberId) {
+      return data.id == memberId &&
+             isValidString(data.name, 1, 80) &&
+             isValidString(data.role, 1, 50) &&
+             isValidNumber(data.monthlyBudget, 0, 1000000000) &&
+             (!('pin' in data) || data.pin == null || (data.pin is string && data.pin.size() == 4 && data.pin.matches('^[0-9]{4}$'))) &&
+             (!('notes' in data) || data.notes == null || (data.notes is string && data.notes.size() <= 500));
+    }
+
+    // Financial Transaction Validation
+    function isValidTransaction(data, txId) {
+      return data.id == txId &&
+             isValidNumber(data.amount, 0, 1000000000) &&
+             (data.type == 'expense' || data.type == 'income') &&
+             isValidId(data.categoryId) &&
+             isValidId(data.memberId) &&
+             isValidString(data.date, 8, 30) &&
+             isValidString(data.paymentMethod, 1, 50) &&
+             (!('description' in data) || (data.description is string && data.description.size() <= 500)) &&
+             (!('title' in data) || (data.title is string && data.title.size() <= 500)) &&
+             (!('beneficiaryMemberId' in data) || data.beneficiaryMemberId == null || isValidId(data.beneficiaryMemberId)) &&
+             (!('notes' in data) || data.notes == null || (data.notes is string && data.notes.size() <= 500)) &&
+             (!('receiptUrl' in data) || data.receiptUrl == null || (data.receiptUrl is string && data.receiptUrl.size() <= 500000)) &&
+             (!('isRecurring' in data) || data.isRecurring is bool) &&
+             (!('recurringId' in data) || data.recurringId == null || isValidId(data.recurringId)) &&
+             (!('createdAt' in data) || data.createdAt is string);
+    }
+
+    // Recurring Commitment / Expense Validation
+    function isValidRecurring(data, recId) {
+      return data.id == recId &&
+             isValidString(data.title, 1, 200) &&
+             isValidNumber(data.amount, 0, 1000000000) &&
+             isValidId(data.categoryId) &&
+             isValidId(data.memberId) &&
+             (!('beneficiaryMemberId' in data) || data.beneficiaryMemberId == null || isValidId(data.beneficiaryMemberId)) &&
+             (data.frequency == 'monthly' || data.frequency == 'weekly' || data.frequency == 'yearly' || data.frequency == 'daily') &&
+             isValidNumber(data.dueDay, 1, 31) &&
+             (!('isActive' in data) || data.isActive is bool) &&
+             (!('notes' in data) || data.notes == null || (data.notes is string && data.notes.size() <= 500)) &&
+             (!('autoDeduct' in data) || data.autoDeduct is bool) &&
+             (!('paymentMethod' in data) || data.paymentMethod == null || (data.paymentMethod is string && data.paymentMethod.size() <= 50)) &&
+             (!('lastGeneratedMonth' in data) || data.lastGeneratedMonth == null || (data.lastGeneratedMonth is string && data.lastGeneratedMonth.size() <= 30)) &&
+             (!('lastLoggedMonth' in data) || data.lastLoggedMonth == null || (data.lastLoggedMonth is string && data.lastLoggedMonth.size() <= 30)) &&
+             (!('createdAt' in data) || data.createdAt is string);
+    }
+
+    // --- Users Collection Rules ---
+    match /users/{userId} {
+      allow get: if isOwner(userId) && isValidId(userId);
+      allow list: if isOwner(userId);
+      allow create, update: if isOwner(userId) && isValidId(userId) && isValidUserDoc(request.resource.data, userId);
+      allow delete: if false; // Disallow accidental or rogue account root deletion
+
+      // Settings subcollection
+      match /settings/{settingId} {
+        allow get: if isOwner(userId) && isValidId(settingId);
+        allow list: if isOwner(userId);
+        allow create, update: if isOwner(userId) && isValidId(settingId) && isValidSettings(request.resource.data);
+        allow delete: if false;
+      }
+
+      // Family Members subcollection
+      match /members/{memberId} {
+        allow get: if isOwner(userId) && isValidId(memberId);
+        allow list: if isOwner(userId);
+        allow create, update: if isOwner(userId) && isValidId(memberId) && isValidMember(request.resource.data, memberId);
+        allow delete: if isOwner(userId) && isValidId(memberId);
+      }
+
+      // Financial Transactions subcollection
+      match /transactions/{txId} {
+        allow get: if isOwner(userId) && isValidId(txId);
+        allow list: if isOwner(userId);
+        allow create, update: if isOwner(userId) && isValidId(txId) && isValidTransaction(request.resource.data, txId);
+        allow delete: if isOwner(userId) && isValidId(txId);
+      }
+
+      // Recurring Commitments subcollection
+      match /recurringExpenses/{recId} {
+        allow get: if isOwner(userId) && isValidId(recId);
+        allow list: if isOwner(userId);
+        allow create, update: if isOwner(userId) && isValidId(recId) && isValidRecurring(request.resource.data, recId);
+        allow delete: if isOwner(userId) && isValidId(recId);
+      }
+    }
+  }
+}

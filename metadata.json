@@ -1,0 +1,6 @@
+{
+  "name": "مصاريف العائلة | Family Expenses",
+  "description": "تطبيق متكامل لإدارة ومتابعة المصاريف والدخل العائلي مع قاعدة بيانات سحابية (Firestore)، نظام تسجيل دخول وإنشاء حساب، استعادة كلمة المرور، وإدارة المصاريف المتكررة",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
